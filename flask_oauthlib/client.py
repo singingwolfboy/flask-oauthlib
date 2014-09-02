@@ -234,11 +234,6 @@ class OAuthRemoteApp(object):
         self.oauth = oauth
         self.name = name
 
-        if (not consumer_key or not consumer_secret) and not app_key:
-            raise TypeError(
-                'OAuthRemoteApp requires consumer key and secret'
-            )
-
         self._base_url = base_url
         self._request_token_url = request_token_url
         self._access_token_url = access_token_url
@@ -254,6 +249,28 @@ class OAuthRemoteApp(object):
 
         self.app_key = app_key
         self.encoding = encoding
+
+        # check for required authentication information
+        if app_key:
+            # skip this check if app_key is specified, since the information is
+            # specified in the Flask config, instead.
+            pass
+        else:
+            req_params = self.request_token_params or {}
+            if req_params.get("signature_method") == oauthlib.oauth1.SIGNATURE_RSA:
+                # check for consumer_key and rsa_key
+                rsa_key = req_params.get("rsa_key")
+                if not consumer_key or not rsa_key:
+                    raise TypeError(
+                        "OAuthRemoteApp with RSA authentication requires "
+                        "consumer key and rsa key"
+                    )
+            else:
+                # check for consumer_key and consumer_secret
+                if not consumer_key or not consumer_secret:
+                    raise TypeError(
+                        "OAuthRemoteApp requires consumer key and secret"
+                    )
 
     @cached_property
     def base_url(self):
@@ -324,7 +341,8 @@ class OAuthRemoteApp(object):
         # request_token_url is for oauth1
         if self.request_token_url:
             client = oauthlib.oauth1.Client(
-                self.consumer_key, self.consumer_secret
+                client_key=self.consumer_key,
+                client_secret=self.consumer_secret,
             )
 
             params = self.request_token_params or {}
